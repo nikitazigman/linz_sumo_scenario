@@ -1,0 +1,21 @@
+{
+    "cSpell.words": [
+        "sumocfg",
+        "Traveltime",
+        "vehicletype"
+    ],
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    "python.autoComplete.extraPaths": [
+        "/Users/nikitazigman/code/jku_its/h2mob/sumo/utils/"
+    ],
+    "python.analysis.extraPaths": [
+        "/Users/nikitazigman/code/jku_its/h2mob/sumo/utils/"
+    ],
+}

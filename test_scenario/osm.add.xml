@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2023-12-22 20:44:16 by Eclipse SUMO netedit Version 1.19.0
+-->
+
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+    <!-- StoppingPlaces -->
+    <chargingStation id="cs_0" lane="E7_0" startPos="0.80" endPos="30.80" power="500.00" efficiency="1.00" chargeDelay="120000" chargeType="fuel"/>
+    <chargingStation id="cs_1" lane="E7_1" startPos="0.57" endPos="30.57" power="500.00" efficiency="1.00" chargeDelay="120000" chargeType="fuel"/>
+    <chargingStation id="cs_2" lane="E7_2" startPos="0.54" endPos="30.54" power="500.00" efficiency="1.00" chargeDelay="120000" chargeType="fuel"/>
+</additional>
