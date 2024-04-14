@@ -5,11 +5,11 @@ from pydantic_settings import BaseSettings
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SUMO_DIR = BASE_DIR / "test_scenario/osm.sumocfg"
+SUMO_DIR = BASE_DIR / "scenarios/linz_scenario/osm.sumocfg"
 
 
 class Settings(BaseSettings):
-    sumo_scenario: Path = SUMO_DIR
+    sumo_scenario_path: Path = SUMO_DIR
 
 
 @lru_cache(maxsize=1)

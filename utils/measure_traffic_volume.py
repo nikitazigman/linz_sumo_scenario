@@ -6,7 +6,7 @@ import traci
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SUMO_DIR = BASE_DIR / "test_scenario/osm.sumocfg"
+SUMO_DIR = BASE_DIR / "scenarios/linz_scenario/osm.sumocfg"
 
 profile: dict[str, list[float]] = {"time": [], "vehicle_count": []}
 

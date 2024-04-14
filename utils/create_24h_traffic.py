@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 
 from pathlib import Path
@@ -21,7 +22,6 @@ def generate_random_traffic(
         "python /opt/homebrew/share/sumo/tools/randomTrips.py "
         f"--net-file {net_file_path} "
         f"-o {trip_file_path} "
-        f"--additional-files {additional_file_path} "
         f"""--trip-attributes="type='{vehicle_type}'" """
         f"--begin {start_time_sec} "
         f"--end {end_time_sec} "
@@ -30,8 +30,10 @@ def generate_random_traffic(
         f"--min-distance {min_distance_m} "
         f"--prefix {prefix} "
         f"--route-file {route_file_path} "
+        # f"--additional-files {additional_file_path} "
         f"--random "
-        # f"--verbose"
+        # "--validate "
+        f"--verbose"
     )
     with subprocess.Popen(
         command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -50,7 +52,7 @@ def generate_random_traffic(
     return None
 
 
-def generate_random_traffic_for_24h(total_volume: int) -> None:
+def generate_random_traffic_for_24h(total_volume: int, scenario: str) -> None:
     traffic_volume_profile: dict[int, float] = {
         0: 0.01 * total_volume,
         1: 0.01 * total_volume,
@@ -79,12 +81,14 @@ def generate_random_traffic_for_24h(total_volume: int) -> None:
         24: 0.02 * total_volume,
     }
 
-    scenario_path = Path(__file__).parent.parent / "test_scenario"
-    net_file_path = scenario_path / "osm.net.xml.gz"
-    vehicle_type_path = scenario_path / "vehicles_types.add.xml"
+    root_dir = Path(__file__).parent.parent
+    vehicle_type_path = root_dir / "configs/vehicles_types.add.xml"
 
+    scenario_path = root_dir / scenario
+    net_file_path = scenario_path / "net.net.xml"
     route_file_path = scenario_path / "routes.rou.xml"
     trip_file_path = scenario_path / "trips.trips.xml"
+
     periods: list[float] = []
 
     for i in range(0, 24):
@@ -102,11 +106,27 @@ def generate_random_traffic_for_24h(total_volume: int) -> None:
         start_time_sec=0,
         end_time_sec=24 * 3600,
         period=periods,
-        max_distance_m=10000,
+        max_distance_m=30000,
         min_distance_m=1500,
-        prefix=f"route_{i}_",
+        prefix="vehicle",
     )
 
 
 if __name__ == "__main__":
-    generate_random_traffic_for_24h(total_volume=10_000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--scenario_path",
+        help="path to scenario relative to root directory",
+        required=True,
+    )
+    parser.add_argument(
+        "--total_volume",
+        help="total volume of traffic for 24h",
+        required=True,
+        type=int,
+    )
+    args = parser.parse_args()
+
+    generate_random_traffic_for_24h(
+        total_volume=args.total_volume, scenario=args.scenario_path
+    )

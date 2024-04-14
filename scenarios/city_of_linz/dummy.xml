@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2024-04-14 20:47:43 by Eclipse SUMO duarouter Version 1.19.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
+
+    <input>
+        <net-file value="004/../net.net.xml"/>
+        <additional-files value="004/../vehicles_types.add.xml"/>
+        <route-files value="004/../003/routes_003.rou.alt.xml"/>
+        <weight-files value="004/../003/dump_900.xml"/>
+    </input>
+
+    <output>
+        <output-file value="004/routes_004.rou.xml"/>
+        <vtype-output value="004/../dummy.xml"/>
+        <exit-times value="False"/>
+    </output>
+
+    <processing>
+        <max-alternatives value="5"/>
+        <with-taz value="False"/>
+        <routing-algorithm value="dijkstra"/>
+        <weights.expand value="true"/>
+        <gawron.beta value="0.9"/>
+        <gawron.a value="0.5"/>
+        <keep-all-routes value="False"/>
+        <logit.beta value="0.15"/>
+        <logit.gamma value="1.0"/>
+    </processing>
+
+    <time>
+        <begin value="0"/>
+    </time>
+
+    <report>
+        <verbose value="False"/>
+        <no-warnings value="False"/>
+        <ignore-errors value="False"/>
+        <no-step-log value="true"/>
+    </report>
+
+    <random_number>
+        <random value="False"/>
+    </random_number>
+
+</configuration>
