@@ -1,0 +1,100 @@
+[tool.poetry]
+name = "scenario_generator"
+version = "0.1.0"
+description = ""
+authors = ["nikita zigman <zigman.nikita@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.5.2"
+pydantic-settings = "^2.1.0"
+numpy = "^1.26.2"
+matplot = "^0.1.9"
+pandas = "^2.1.4"
+loguru = "^0.7.2"
+typer = "^0.12.3"
+rich = "^13.7.1"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.6"
+isort = "^5.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.mypy]
+files = "src/"
+ignore_missing_imports = "True"
+strict_optional = "True"
+
+
+[tool.ruff]
+exclude = [".git", "docs", "build", "dist", "venv"]
+target-version = "py312"
+fixable = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "I",
+    "N",
+    "Q",
+    "S",
+    "T",
+    "W",
+    "ANN",
+    "ARG",
+    "BLE",
+    "COM",
+    "DJ",
+    "DTZ",
+    "EM",
+    "ERA",
+    "EXE",
+    "FBT",
+    "ICN",
+    "INP",
+    "ISC",
+    "NPY",
+    "PD",
+    "PGH",
+    "PIE",
+    "PL",
+    "PT",
+    "PTH",
+    "PYI",
+    "RET",
+    "RSE",
+    "RUF",
+    "SIM",
+    "SLF",
+    "TCH",
+    "TID",
+    "TRY",
+    "UP",
+    "YTT",
+]
+select = [
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "UP", # pyupgrade,
+    "I",  # isort
+]
+
+[tool.ruff.isort]
+lines-after-imports = 2
+lines-between-types = 1
+section-order = [
+    "future",
+    "standard-library",
+    "first-party",
+    "local-folder",
+    "third-party",
+]
