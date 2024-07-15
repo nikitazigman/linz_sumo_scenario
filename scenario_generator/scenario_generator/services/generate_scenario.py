@@ -1,9 +1,11 @@
 import subprocess
-import rich
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 from scenario_generator.settings import generator_config
+
+import rich
 
 
 class Service(ABC):
@@ -11,7 +13,6 @@ class Service(ABC):
     def __init__(
         self,
         config: generator_config.ScenarioConfig,
-        hydrogen_vehicles: float,
         scenario: Path,
         total_vehicle_volume: int,
     ) -> None:
@@ -26,7 +27,6 @@ class ScenarioGeneratorService(Service):
     def __init__(
         self,
         config: generator_config.ScenarioConfig,
-        hydrogen_vehicles: float,
         scenario: Path,
         total_vehicle_volume: int,
     ) -> None:
@@ -34,7 +34,6 @@ class ScenarioGeneratorService(Service):
         self.route_file = scenario / config.route_file_path
         self.trip_file = scenario / config.trip_file_path
         self.vehicle_type_file = config.vehicle_type_config_path
-        self.hydrogen_vehicles = hydrogen_vehicles
         self.total_vehicle = total_vehicle_volume
 
         self.trafic_profile = config.volume_profile
@@ -44,9 +43,6 @@ class ScenarioGeneratorService(Service):
         self.max_distance_m = config.max_trip_distance_m
         self.prefix = config.prefix
         self.vehicle_type = config.vehicle_type
-
-    def generate_scenario(self) -> None:
-        ...
 
     def build_command(self, period: list[float]) -> str:
         period_str = ",".join([str(p) for p in period])
@@ -82,65 +78,35 @@ class ScenarioGeneratorService(Service):
                 f" {response[1].decode('utf-8')}\n"
             )
 
-        rich.print(f"Successfully generated random traffic: \n{response[0].decode('utf-8')}")
+        rich.print(
+            f"Successfully generated random traffic: \n{response[0].decode('utf-8')}"
+        )
         return None
 
+    def compute_periods(self) -> list[float]:
+        periods: list[float] = []
 
-def generate_random_traffic_for_24h(total_volume: int, scenario: str) -> None:
-    traffic_volume_profile: dict[int, float] = {
-        0: 0.01 * total_volume,
-        1: 0.01 * total_volume,
-        2: 0.01 * total_volume,
-        3: 0.01 * total_volume,
-        4: 0.01 * total_volume,
-        5: 0.01 * total_volume,
-        6: 0.02 * total_volume,
-        7: 0.04 * total_volume,
-        8: 0.06 * total_volume,
-        9: 0.06 * total_volume,
-        10: 0.05 * total_volume,
-        11: 0.05 * total_volume,
-        12: 0.05 * total_volume,
-        13: 0.05 * total_volume,
-        14: 0.06 * total_volume,
-        15: 0.06 * total_volume,
-        16: 0.06 * total_volume,
-        17: 0.06 * total_volume,
-        18: 0.06 * total_volume,
-        19: 0.07 * total_volume,
-        20: 0.07 * total_volume,
-        21: 0.05 * total_volume,
-        22: 0.04 * total_volume,
-        23: 0.03 * total_volume,
-        24: 0.02 * total_volume,
-    }
+        for i in range(0, 24):
+            t0, t1 = i * 3600, (i + 1) * 3600
+            period = (t1 - t0) / self.trafic_profile[i]
+            rounded_period = round(period, 2)
+            periods.append(rounded_period)
 
-    root_dir = Path(__file__).parent.parent
-    vehicle_type_path = root_dir / "configs/vehicles_types.add.xml"
+        return periods
 
-    scenario_path = root_dir / scenario
-    net_file_path = scenario_path / "net.net.xml"
-    route_file_path = scenario_path / "routes.rou.xml"
-    trip_file_path = scenario_path / "trips.trips.xml"
+    def generate_scenario(self) -> None:
+        periods: list[float] = self.compute_periods()
+        command = self.build_command(period=periods)
+        self.generate_random_traffic(command)
 
-    periods: list[float] = []
 
-    for i in range(0, 24):
-        t0, t1 = i * 3600, (i + 1) * 3600
-        period = (t1 - t0) / traffic_volume_profile[i]
-        rounded_period = round(period, 2)
-        periods.append(rounded_period)
-
-    generate_random_traffic(
-        net_file_path=net_file_path,
-        route_file_path=route_file_path,
-        trip_file_path=trip_file_path,
-        additional_file_path=vehicle_type_path,
-        vehicle_type="vehicle_distribution",
-        start_time_sec=0,
-        end_time_sec=24 * 3600,
-        period=periods,
-        max_distance_m=30000,
-        min_distance_m=1500,
-        prefix="vehicle",
+def get_scenario_generator_service(
+    config: generator_config.ScenarioConfig,
+    scenario: Path,
+    total_vehicle_volume: int,
+) -> Service:
+    return ScenarioGeneratorService(
+        config=config,
+        scenario=scenario,
+        total_vehicle_volume=total_vehicle_volume,
     )
