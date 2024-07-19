@@ -1,9 +1,11 @@
+import shutil
 import subprocess
 
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 from scenario_generator.settings import generator_config
+from scenario_generator.settings.general import ROOT_UTILS_PATH
 
 import rich
 
@@ -13,7 +15,7 @@ class Service(ABC):
     def __init__(
         self,
         config: generator_config.ScenarioConfig,
-        scenario: Path,
+        net_file: Path,
         total_vehicle_volume: int,
     ) -> None:
         ...
@@ -26,39 +28,31 @@ class Service(ABC):
 class ScenarioGeneratorService(Service):
     def __init__(
         self,
+        scenario_name: str,
         config: generator_config.ScenarioConfig,
-        scenario: Path,
+        net_file: Path,
         total_vehicle_volume: int,
     ) -> None:
-        self.net_file = scenario / config.net_file_path
-        self.route_file = scenario / config.route_file_path
-        self.trip_file = scenario / config.trip_file_path
-        self.vehicle_type_file = config.vehicle_type_config_path
+        self.net_file = net_file
+        self.scenario_name = scenario_name
         self.total_vehicle = total_vehicle_volume
-
-        self.trafic_profile = config.volume_profile
         self.start_time_sec = 0
         self.stop_time_sec = 24 * 3600
-        self.min_distance_m = config.min_trip_distance_m
-        self.max_distance_m = config.max_trip_distance_m
-        self.prefix = config.prefix
-        self.vehicle_type = config.vehicle_type
+        self.config = config
 
-    def build_command(self, period: list[float]) -> str:
+    def build_command(self, scenario: Path, period: list[float]) -> str:
         period_str = ",".join([str(p) for p in period])
         command = (
             "python /opt/homebrew/share/sumo/tools/randomTrips.py "
             f"--net-file {self.net_file} "
-            f"-o {self.trip_file} "
-            f"""--trip-attributes="type='{self.vehicle_type_file}'" """
+            f"-o {scenario / self.config.trip_file_path} "
             f"--begin {self.start_time_sec} "
             f"--end {self.stop_time_sec} "
             f"-p {period_str} "
-            f"--max-distance {self.max_distance_m} "
-            f"--min-distance {self.min_distance_m} "
-            f"--prefix {self.prefix} "
-            f"--route-file {self.route_file} "
-            f"--additional-files {self.vehicle_type_file} "
+            f"--max-distance {self.config.max_trip_distance_m} "
+            f"--min-distance {self.config.min_trip_distance_m} "
+            f"--prefix {self.config.prefix} "
+            f"--route-file {scenario / self.config.route_file_path} "
             f"--random "
             "--validate "
             f"--verbose"
@@ -86,27 +80,42 @@ class ScenarioGeneratorService(Service):
     def compute_periods(self) -> list[float]:
         periods: list[float] = []
 
-        for i in range(0, 24):
-            t0, t1 = i * 3600, (i + 1) * 3600
-            period = (t1 - t0) / self.trafic_profile[i]
+        for hour in range(0, 24):
+            t0, t1 = hour * 3600, (hour + 1) * 3600
+            period = (t1 - t0) / self.config.volume_profile[hour]
             rounded_period = round(period, 2)
             periods.append(rounded_period)
 
         return periods
 
+    def build_scenario_directory(self) -> Path:
+        scenario_path = ROOT_UTILS_PATH.parent / f"scenarios/{self.scenario_name}"
+
+        if scenario_path.exists():
+            shutil.rmtree(scenario_path)
+        
+        shutil.copytree(src=self.config.template_path, dst=scenario_path)
+        shutil.copy(src=self.net_file, dst=scenario_path / "osm.net.xml")
+        
+        scenario_path.joinpath("out").mkdir()
+        return scenario_path
+
     def generate_scenario(self) -> None:
+        scenario = self.build_scenario_directory()
         periods: list[float] = self.compute_periods()
-        command = self.build_command(period=periods)
+        command = self.build_command(period=periods, scenario=scenario)
         self.generate_random_traffic(command)
 
 
 def get_scenario_generator_service(
+    scenario_name: str,
     config: generator_config.ScenarioConfig,
-    scenario: Path,
+    net_file: Path,
     total_vehicle_volume: int,
 ) -> Service:
     return ScenarioGeneratorService(
+        scenario_name=scenario_name,
         config=config,
-        scenario=scenario,
+        net_file=net_file,
         total_vehicle_volume=total_vehicle_volume,
     )
