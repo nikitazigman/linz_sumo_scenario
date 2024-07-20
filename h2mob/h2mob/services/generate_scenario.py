@@ -4,8 +4,8 @@ import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from scenario_generator.settings import generator_config
-from scenario_generator.settings.general import ROOT_UTILS_PATH
+from h2mob.settings import generator_config
+from h2mob.settings.general import ROOT_UTILS_PATH
 
 import rich
 
@@ -93,10 +93,10 @@ class ScenarioGeneratorService(Service):
 
         if scenario_path.exists():
             shutil.rmtree(scenario_path)
-        
+
         shutil.copytree(src=self.config.template_path, dst=scenario_path)
         shutil.copy(src=self.net_file, dst=scenario_path / "osm.net.xml")
-        
+
         scenario_path.joinpath("out").mkdir()
         return scenario_path
 

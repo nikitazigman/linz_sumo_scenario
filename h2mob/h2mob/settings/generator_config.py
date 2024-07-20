@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from scenario_generator.settings import general, volume_profile
+from h2mob.settings import general, volume_profile
 
 from pydantic_settings import BaseSettings
 
