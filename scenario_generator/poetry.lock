@@ -1466,6 +1466,34 @@ files = [
 ]
 
 [[package]]
+name = "sumolib"
+version = "1.20.0"
+description = "Python helper modules to read networks, parse output data and do other useful stuff related to the traffic simulation Eclipse SUMO"
+optional = false
+python-versions = "*"
+files = [
+    {file = "sumolib-1.20.0-py3-none-any.whl", hash = "sha256:0331c68a3ca571b395fb7311cb91058462c6b1cbb4be056e38b4188510057a45"},
+    {file = "sumolib-1.20.0.tar.gz", hash = "sha256:04759166f5a6c905bedc0d832d4f9f441a8937c778c06db88f2105aa07a17243"},
+]
+
+[package.extras]
+visualization = ["matplotlib"]
+
+[[package]]
+name = "traci"
+version = "1.20.0"
+description = "The pure python version of the TraCI API to communicate with the traffic simulation Eclipse SUMO"
+optional = false
+python-versions = "*"
+files = [
+    {file = "traci-1.20.0-py3-none-any.whl", hash = "sha256:afcff11ff1551a8727a2ab64a208f9baee0721e9774aad70143500093ec66e92"},
+    {file = "traci-1.20.0.tar.gz", hash = "sha256:be7373fde1405c60f61d9db8412cac562083c8673d0ff620c68c254e67ca6d23"},
+]
+
+[package.dependencies]
+sumolib = ">=1.20.0"
+
+[[package]]
 name = "twine"
 version = "5.1.1"
 description = "Collection of utilities for publishing packages on PyPI"
@@ -1612,4 +1640,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "4ebdcd9b5ef72a237409c9b481caf37595b6eb259632dd0b55f604516d9b5e9c"
+content-hash = "a10e72f6c14b27ac714b56fd464faf2cf729cdcb168d58156eaa291bf64ed021"
