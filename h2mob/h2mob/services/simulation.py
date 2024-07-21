@@ -1,25 +1,54 @@
+import random
+
 from abc import ABC, abstractmethod
+from enum import Enum
 from logging import Logger
 from pathlib import Path
+from xml.etree import ElementTree
 
-from h2mob.settings.simulation import (
-    GasStation,
-    SimulationConfig,
-    VehicleConfig,
-)
+from h2mob.settings.simulation import SimulationConfig
 
 import traci
+
+from pydantic import BaseModel
+
+
+class GasStation(BaseModel):
+    id: str
+    lane: str
+
+
+class FuelType(Enum):
+    petrol = 0
+    hydrogen = 1
+
+
+class Vehicle(BaseModel):
+    colour: tuple[int, int, int, int]  # RGBA
+    fuel_type: FuelType
+    charging_duration_seconds: int = 5 * 60  # 5 mins
+    tank_liters: int
+    mass_kg: int
+    front_surface_area: float
+    air_drag_coefficient: float
+    constant_power_intake: int
+    internal_moment_of_inertia: float
+    radial_drag_coefficient: float
+    roll_drag_coefficient: float
+    propulsion_efficiency: float
+    recuperatoin_efficiency: float = 0.0
+    stopping_threshold: float
+
+
+class ScenarioConfig(BaseModel):
+    # fuel_stations: list[GasStation]
+    # hydrogen_stations: list[GasStation]
+    vehicles: dict[str, Vehicle]
 
 
 class Service(ABC):
     @abstractmethod
     def run(self) -> None:
-        ...
-
-
-class Step(traci.StepListener):
-    @abstractmethod
-    def __init__(self, config: SimulationConfig) -> None:
         ...
 
 
@@ -43,11 +72,13 @@ class Client(ABC):
         ...
 
     @abstractmethod
-    def set_vehicle_type(self, vehicle_id: str, vehicle_type: VehicleConfig) -> None:
+    def set_vehicle_type(self, vehicle_id: str, vehicle_type: Vehicle) -> None:
         ...
 
 
 class SumoClient(Client):
+    mg_in_liters: int = 748_900
+
     def route_to_nearest_gas_station(
         self, vehicle_id: str, gas_stations: list[GasStation], stop_duration_sec: int
     ) -> None:
@@ -81,27 +112,54 @@ class SumoClient(Client):
 
     def get_tank_level_liters(self, vehicle_id: str) -> float:
         tank_mg = int(traci.vehicle.getParameter(vehicle_id, "actualBatteryCapacity"))
-        return tank_mg / 748_900  # mg in liter
+        return tank_mg / self.mg_in_liters  # mg in liter
 
-    def set_vehicle_type(self, vehicle_id: str, vehicle_type: VehicleConfig) -> None:
-        ...
+    def set_vehicle_type(self, vehicle_id: str, vehicle_type: Vehicle) -> None:
+        vehicle_parameters: dict = {
+            # "has.battery.device": True,
+            # "device.battery.capacity": vehicle_type.tank_liters * self.mg_in_liters,
+            "vehicleMass": vehicle_type.mass_kg,
+            "frontSurfaceArea": vehicle_type.front_surface_area,
+            "airDragCoefficient": vehicle_type.air_drag_coefficient,
+            "constantPowerIntake": vehicle_type.constant_power_intake,
+            "internalMomentOfInertia": vehicle_type.internal_moment_of_inertia,
+            "radialDragCoefficient": vehicle_type.radial_drag_coefficient,
+            "rollDragCoefficient": vehicle_type.roll_drag_coefficient,
+            "propulsionEfficiency": vehicle_type.propulsion_efficiency,
+            "recuperationEfficiency": vehicle_type.recuperatoin_efficiency,
+            "stoppingThreshold": vehicle_type.stopping_threshold,
+        }
+
+        for key, value in vehicle_parameters.items():
+            traci.vehicle.setParameter(vehicle_id, key, value)
+
+        traci.vehicle.setColor(vehicle_id, vehicle_type.colour)
+
+
+class Step(traci.StepListener):
+    def __init__(
+        self,
+        client: Client,
+        simulation_config: SimulationConfig,
+        scenario_config: ScenarioConfig,
+    ) -> None:
+        self.simulation_config = simulation_config
+        self.scenario_config = scenario_config
+        self.client = client
 
 
 class ConfigureVehicle(Step):
-    def __init__(self, config: SimulationConfig) -> None:
-        self.config = config
-
     def step(self, t: int) -> bool:
-        print("configuration step listener")
+        loaded_vehicle_ids = self.client.get_loaded_vehicles_ids()
+        for vehicle_id in loaded_vehicle_ids:
+            vehicle_type = self.scenario_config.vehicles[vehicle_id]
+            self.client.set_vehicle_type(vehicle_id, vehicle_type)
+
         return True
 
 
-class VehicleRouter(traci.StepListener):
-    def __init__(self, config: SimulationConfig) -> None:
-        self.config = config
-
+class VehicleRouter(Step):
     def step(self, t: int) -> bool:
-        print("routing step listener")
         return True
 
 
@@ -110,11 +168,17 @@ class SimulationService(Service):
         VehicleRouter,
         ConfigureVehicle,
     )
+    client: Client = SumoClient()
 
     def __init__(
-        self, logger: Logger, config: SimulationConfig, scenario_path: Path
+        self,
+        logger: Logger,
+        simulation_config: SimulationConfig,
+        scenario_config: ScenarioConfig,
+        scenario_path: Path,
     ) -> None:
-        self.config = config
+        self.simulation_config = simulation_config
+        self.scenario_config = scenario_config
         self.scenario_path = scenario_path
         self.logger = logger
 
@@ -129,11 +193,15 @@ class SimulationService(Service):
 
     def add_simulation_listeners(self) -> None:
         for listener_type in self.listeners:
-            listener = listener_type(self.config)
+            listener = listener_type(
+                scenario_config=self.scenario_config,
+                simulation_config=self.simulation_config,
+                client=self.client,
+            )
             traci.addStepListener(listener)
 
     def simulation_loop(self) -> None:
-        sumocfg_file = self.scenario_path / self.config.sumocfg_file
+        sumocfg_file = self.scenario_path / self.simulation_config.sumocfg_file
         traci.start(["sumo-gui", "-c", sumocfg_file])
 
         self.add_simulation_listeners()
@@ -142,7 +210,74 @@ class SimulationService(Service):
             traci.simulationStep()
 
 
+class ScenarioParser:
+    def __init__(
+        self, simulation_config: SimulationConfig, scenario_path: Path
+    ) -> None:
+        self.scenario_path = scenario_path
+        self.simulation_config = simulation_config
+
+    def get_scenario_config(self) -> ScenarioConfig:
+        vehicle_ids = self.get_vehicle_ids()
+        vehicles = self.generate_vehicle_configs(vehicle_ids)
+
+        return ScenarioConfig(
+            # gas_stations=[],
+            # fuel_stations=[],
+            vehicles=vehicles,
+        )
+
+    def get_vehicle_ids(self) -> list[str]:
+        routes = self.scenario_path / self.simulation_config.routes_file
+        routers_root = ElementTree.parse(routes)
+        return [vehicle.attrib["id"] for vehicle in routers_root.findall("vehicle")]  # type: ignore
+
+    def generate_vehicle_configs(self, vehicle_ids: list[str]) -> dict[str, Vehicle]:
+        vehicles_configs: dict[str, Vehicle] = {}
+
+        for vehicle_id in vehicle_ids:
+            fuel_type = FuelType.hydrogen
+            colour = self.simulation_config.hydrogen_vehicle_colour
+
+            if random.random() < 0.1:  # replace to user input
+                fuel_type = FuelType.hydrogen
+                colour = self.simulation_config.hydrogen_vehicle_colour
+
+            vehicles_configs[vehicle_id] = Vehicle(
+                colour=colour,
+                fuel_type=fuel_type,
+                charging_duration_seconds=random.randint(5 * 60, 15 * 60),
+                tank_liters=random.randint(40, 80),
+                mass_kg=random.randint(1500, 2200),
+                # change to rand
+                front_surface_area=2.6,
+                air_drag_coefficient=0.35,
+                constant_power_intake=100,
+                internal_moment_of_inertia=0.01,
+                radial_drag_coefficient=0.01,
+                roll_drag_coefficient=0.01,
+                propulsion_efficiency=0.98,
+                recuperatoin_efficiency=0.0,
+                stopping_threshold=0.1,
+            )
+
+        return vehicles_configs
+
+    # TODO: extract data from scenario file
+    def get_fuel_stations(self) -> tuple[list[GasStation], list[GasStation]]:
+        return [GasStation(id="1", lane="lane")], [GasStation(id="1", lane="lane")]
+
+
 def get_simulation_service(
-    logger: Logger, config: SimulationConfig, scenario_path: Path
+    logger: Logger, simulation_config: SimulationConfig, scenario_path: Path
 ) -> Service:
-    return SimulationService(logger=logger, config=config, scenario_path=scenario_path)
+    scenario_parser = ScenarioParser(
+        simulation_config=simulation_config, scenario_path=scenario_path
+    )
+    scenario_config = scenario_parser.get_scenario_config()
+    return SimulationService(
+        logger=logger,
+        simulation_config=simulation_config,
+        scenario_config=scenario_config,
+        scenario_path=scenario_path,
+    )

@@ -34,10 +34,10 @@ def generate_scenario(
 
 @app.command()
 def run(scenario_path: Annotated[Path, typer.Argument()]):
-    config = get_simulation_config(scenario_path=scenario_path)
+    config = get_simulation_config()
     service = get_simulation_service(
         logger=logger,
-        config=config,
+        simulation_config=config,
         scenario_path=scenario_path,
     )
     service.run()
