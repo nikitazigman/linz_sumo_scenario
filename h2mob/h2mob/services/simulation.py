@@ -116,8 +116,7 @@ class SumoClient(Client):
 
     def set_vehicle_type(self, vehicle_id: str, vehicle_type: Vehicle) -> None:
         vehicle_parameters: dict = {
-            # "has.battery.device": True,
-            # "device.battery.capacity": vehicle_type.tank_liters * self.mg_in_liters,
+            "actualBatteryCapacity": vehicle_type.tank_liters * self.mg_in_liters,
             "vehicleMass": vehicle_type.mass_kg,
             "frontSurfaceArea": vehicle_type.front_surface_area,
             "airDragCoefficient": vehicle_type.air_drag_coefficient,
@@ -247,7 +246,7 @@ class ScenarioParser:
                 colour=colour,
                 fuel_type=fuel_type,
                 charging_duration_seconds=random.randint(5 * 60, 15 * 60),
-                tank_liters=random.randint(40, 80),
+                tank_liters=random.randint(20, 45),
                 mass_kg=random.randint(1500, 2200),
                 # change to rand
                 front_surface_area=2.6,

@@ -13,11 +13,11 @@
     </processing>
 
     <output>
-        <!-- <battery-output value="out/battery.out.xml"/> -->
-        <!-- <battery-output.precision value="4"/> -->
+        <battery-output value="out/battery.out.xml"/> 
+        <battery-output.precision value="4"/> 
         <summary-output value="out/summary.out.xml"/>
-        <!-- <emission-output value="out/emission.out.xml"/> -->
-        <!-- <chargingstations-output value="out/chargingstations.out.xml"/> -->
+        <emission-output value="out/emission.out.xml"/> 
+        <chargingstations-output value="out/chargingstations.out.xml"/> 
         <statistic-output value="out/statistics.out.xml"/>
     </output>
 

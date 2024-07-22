@@ -11,7 +11,8 @@ class ScenarioConfig(BaseSettings):
 
     route_file_path: str = "routes.rou.xml"
     trip_file_path: str = "trips.trips.xml"
-
+    vehicle_type_path: str = "vehicle_type.xml"
+    vehicle_type_name: str = "vehicle"
     volume_profile: dict[int, float] = volume_profile.traffic_volume_profile
 
     min_trip_distance_m: int = 1500

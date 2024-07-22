@@ -47,12 +47,14 @@ class ScenarioGeneratorService(Service):
             f"--net-file {self.net_file} "
             f"-o {scenario / self.config.trip_file_path} "
             f"--begin {self.start_time_sec} "
+            f"""--trip-attributes="type='{self.config.vehicle_type_name}'" """
             f"--end {self.stop_time_sec} "
             f"-p {period_str} "
             f"--max-distance {self.config.max_trip_distance_m} "
             f"--min-distance {self.config.min_trip_distance_m} "
             f"--prefix {self.config.prefix} "
             f"--route-file {scenario / self.config.route_file_path} "
+            f"--additional-files {scenario / self.config.vehicle_type_path} "
             f"--random "
             "--validate "
             f"--verbose"
@@ -82,7 +84,7 @@ class ScenarioGeneratorService(Service):
 
         for hour in range(0, 24):
             t0, t1 = hour * 3600, (hour + 1) * 3600
-            period = (t1 - t0) / self.config.volume_profile[hour]
+            period = (t1 - t0) / (self.config.volume_profile[hour] * self.total_vehicle)
             rounded_period = round(period, 2)
             periods.append(rounded_period)
 
