@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2024-07-25 22:13:59 by Eclipse SUMO netedit Version 1.20.0
+-->
+
+<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">
+    <!-- StoppingPlaces -->
+    <chargingStation id="cs_0" lane="E5_3" startPos="8.05" endPos="28.05" chargeType="fuel"/>
+    <chargingStation id="cs_1" lane="E5_2" startPos="8.05" endPos="28.05" chargeType="fuel"/>
+    <chargingStation id="cs_2" lane="E5_1" startPos="8.05" endPos="28.05" chargeType="fuel"/>
+    <chargingStation id="cs_3" lane="E8_0" startPos="30.98" endPos="50.98" chargeType="fuel"/>
+    <chargingStation id="cs_4" lane="E8_1" startPos="30.98" endPos="50.98" chargeType="fuel"/>
+    <chargingStation id="cs_5" lane="E8_2" startPos="30.98" endPos="50.98" chargeType="fuel"/>
+    <chargingStation id="cs_6" lane="E8_3" startPos="30.98" endPos="50.98" chargeType="fuel"/>
+    <chargingStation id="cs_7" lane="E5_0" startPos="8.05" endPos="28.05" chargeType="fuel"/>
+</additional>
