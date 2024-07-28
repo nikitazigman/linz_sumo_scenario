@@ -41,8 +41,8 @@ class Vehicle(BaseModel):
 
 
 class ScenarioConfig(BaseModel):
-    # fuel_stations: list[GasStation]
-    # hydrogen_stations: list[GasStation]
+    fuel_stations: list[GasStation]
+    hydrogen_stations: list[GasStation]
     vehicles: dict[str, Vehicle]
 
 
@@ -150,8 +150,6 @@ class Step(traci.StepListener):
 
 
 class ConfigureVehicle(Step):
-    configured_vehicles: set = set()
-
     def step(self, t: int) -> bool:
         loaded_vehicle_ids = self.client.get_loaded_vehicles_ids()
 
@@ -159,12 +157,33 @@ class ConfigureVehicle(Step):
             vehicle_type = self.scenario_config.vehicles[vehicle_id]
             self.client.set_vehicle_type(vehicle_id, vehicle_type)
 
-        self.configured_vehicles.update(loaded_vehicle_ids)
         return True
 
 
 class VehicleRouter(Step):
+    routed_vehicles: set = set()
+
     def step(self, t: int) -> bool:
+        vehicles_ids = set(self.client.get_vehicles_ids_in_simulation())
+
+        vehicles_to_reroute = [
+            vehicle
+            for vehicle in self.routed_vehicles - vehicles_ids
+            if self.client.get_tank_level_liters(vehicle)
+            < self.simulation_config.fuel_threshold_liters
+        ]
+
+        for vehicle_id in vehicles_to_reroute:
+            self.logger.info(f"Routing {vehicle_id=}")
+            vehicle_type = self.scenario_config.vehicles[vehicle_id]
+            self.client.route_to_nearest_gas_station(
+                vehicle_id=vehicle_id,
+                gas_stations=[],
+                stop_duration_sec=vehicle_type.charging_duration_seconds,
+            )
+
+        self.routed_vehicles.update(vehicles_to_reroute)
+
         return True
 
 
@@ -207,7 +226,7 @@ class SimulationService(Service):
             traci.addStepListener(listener)
 
     def simulation_loop(self) -> None:
-        sumocfg_file = self.scenario_path / self.simulation_config.sumocfg_file
+        sumocfg_file = self.scenario_path / self.simulation_config.sumocfg_file_path
         traci.start(["sumo-gui", "-c", sumocfg_file])
 
         self.add_simulation_listeners()
@@ -232,13 +251,13 @@ class ScenarioParser:
         vehicles = self.generate_vehicle_configs(vehicle_ids)
 
         return ScenarioConfig(
-            # gas_stations=[],
-            # fuel_stations=[],
+            hydrogen_stations=[],
+            fuel_stations=[],
             vehicles=vehicles,
         )
 
     def get_vehicle_ids(self) -> list[str]:
-        routes = self.scenario_path / self.simulation_config.routes_file
+        routes = self.scenario_path / self.simulation_config.route_file_path
         routers_root = ElementTree.parse(routes)
         return [vehicle.attrib["id"] for vehicle in routers_root.findall("vehicle")]  # type: ignore
 
@@ -273,9 +292,15 @@ class ScenarioParser:
 
         return vehicles_configs
 
-    # TODO: extract data from scenario file
+    # TODO: add arg to select hydrogen stations
     def get_fuel_stations(self) -> tuple[list[GasStation], list[GasStation]]:
-        return [GasStation(id="1", lane="lane")], [GasStation(id="1", lane="lane")]
+        gas_stations_path = self.scenario_path / self.simulation_config.route_file_path
+        stations_root = ElementTree.parse(gas_stations_path)
+        gas_stations = [
+            GasStation(id=station.attrib["id"], lane=station.attrib["lane"])
+            for station in stations_root.findall("chargingStation")
+        ]
+        return gas_stations[:1], gas_stations[1:]
 
 
 def get_simulation_service(
