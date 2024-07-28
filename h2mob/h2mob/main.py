@@ -19,6 +19,7 @@ app = typer.Typer()
 @app.command()
 def generate_scenario(
     net_file: Annotated[Path, typer.Argument()],
+    charging_station_file: Annotated[Path, typer.Argument()],
     total_vehicles: Annotated[int, typer.Argument()],
     scenario_name: str = "scenario",
 ):
@@ -26,6 +27,7 @@ def generate_scenario(
     service = get_scenario_generator_service(
         config=config,
         net_file=net_file,
+        charging_station_file=charging_station_file,
         total_vehicle_volume=total_vehicles,
         scenario_name=scenario_name,
     )

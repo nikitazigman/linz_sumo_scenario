@@ -15,6 +15,7 @@ class Service(ABC):
     def __init__(
         self,
         config: generator_config.ScenarioConfig,
+        charging_station_file: Path,
         net_file: Path,
         total_vehicle_volume: int,
     ) -> None:
@@ -28,12 +29,14 @@ class Service(ABC):
 class ScenarioGeneratorService(Service):
     def __init__(
         self,
+        charging_station_file: Path,
         scenario_name: str,
         config: generator_config.ScenarioConfig,
         net_file: Path,
         total_vehicle_volume: int,
     ) -> None:
         self.net_file = net_file
+        self.charging_station_file = charging_station_file
         self.scenario_name = scenario_name
         self.total_vehicle = total_vehicle_volume
         self.start_time_sec = 0
@@ -97,7 +100,11 @@ class ScenarioGeneratorService(Service):
             shutil.rmtree(scenario_path)
 
         shutil.copytree(src=self.config.template_path, dst=scenario_path)
-        shutil.copy(src=self.net_file, dst=scenario_path / "osm.net.xml")
+        shutil.copy(src=self.net_file, dst=scenario_path / self.config.net_path)
+        shutil.copy(
+            src=self.charging_station_file,
+            dst=scenario_path / self.config.charging_stations_path,
+        )
 
         scenario_path.joinpath("out").mkdir()
         return scenario_path
@@ -111,11 +118,13 @@ class ScenarioGeneratorService(Service):
 
 def get_scenario_generator_service(
     scenario_name: str,
+    charging_station_file: Path,
     config: generator_config.ScenarioConfig,
     net_file: Path,
     total_vehicle_volume: int,
 ) -> Service:
     return ScenarioGeneratorService(
+        charging_station_file=charging_station_file,
         scenario_name=scenario_name,
         config=config,
         net_file=net_file,
