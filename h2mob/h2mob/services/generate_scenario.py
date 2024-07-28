@@ -66,20 +66,29 @@ class ScenarioGeneratorService(Service):
 
     def generate_random_traffic(self, command: str) -> None:
         with subprocess.Popen(
-            command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
         ) as process:
-            response = process.communicate()
+            if process.stdout is None:
+                raise ValueError("stdout is None")
+            if process.stderr is None:
+                raise ValueError("sdterr is None")
 
-        if process.returncode != 0:
+            for line in process.stdout:
+                rich.print(line)
+
+            process.stdout.close()
+            return_code = process.wait(timeout=10)  # 10 sec
+
+        if return_code != 0:
             raise RuntimeError(
-                "Error while generating random traffic:\n"
-                f" {response[0].decode('utf-8')}\n"
-                f" {response[1].decode('utf-8')}\n"
+                "Error while generating random traffic:\n" f"{process.stderr.read()}"
             )
 
-        rich.print(
-            f"Successfully generated random traffic: \n{response[0].decode('utf-8')}"
-        )
+        rich.print("Successfully generated random traffic")
         return None
 
     def compute_periods(self) -> list[float]:
