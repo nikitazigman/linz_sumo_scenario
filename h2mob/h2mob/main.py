@@ -35,10 +35,14 @@ def generate_scenario(
 
 
 @app.command()
-def run(scenario_path: Annotated[Path, typer.Argument()]):
+def run(
+    scenario_path: Annotated[Path, typer.Argument()],
+    percent_of_hydrogen_cars: Annotated[float, typer.Argument()],
+):
     config = get_simulation_config()
     service = get_simulation_service(
         logger=logger,
+        percent_of_hydrogen_cars=percent_of_hydrogen_cars,
         simulation_config=config,
         scenario_path=scenario_path,
     )
