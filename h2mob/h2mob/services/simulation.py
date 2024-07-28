@@ -139,21 +139,27 @@ class Step(traci.StepListener):
     def __init__(
         self,
         client: Client,
+        logger: Logger,
         simulation_config: SimulationConfig,
         scenario_config: ScenarioConfig,
     ) -> None:
+        self.logger = logger
         self.simulation_config = simulation_config
         self.scenario_config = scenario_config
         self.client = client
 
 
 class ConfigureVehicle(Step):
+    configured_vehicles: set = set()
+
     def step(self, t: int) -> bool:
         loaded_vehicle_ids = self.client.get_loaded_vehicles_ids()
+
         for vehicle_id in loaded_vehicle_ids:
             vehicle_type = self.scenario_config.vehicles[vehicle_id]
             self.client.set_vehicle_type(vehicle_id, vehicle_type)
 
+        self.configured_vehicles.update(loaded_vehicle_ids)
         return True
 
 
@@ -196,6 +202,7 @@ class SimulationService(Service):
                 scenario_config=self.scenario_config,
                 simulation_config=self.simulation_config,
                 client=self.client,
+                logger=self.logger,
             )
             traci.addStepListener(listener)
 
@@ -211,8 +218,12 @@ class SimulationService(Service):
 
 class ScenarioParser:
     def __init__(
-        self, simulation_config: SimulationConfig, scenario_path: Path
+        self,
+        simulation_config: SimulationConfig,
+        scenario_path: Path,
+        percent_of_hydrogen_cars: float,
     ) -> None:
+        self.percent_of_hydrogen_cars = percent_of_hydrogen_cars
         self.scenario_path = scenario_path
         self.simulation_config = simulation_config
 
@@ -236,9 +247,9 @@ class ScenarioParser:
 
         for vehicle_id in vehicle_ids:
             fuel_type = FuelType.hydrogen
-            colour = self.simulation_config.hydrogen_vehicle_colour
+            colour = self.simulation_config.petrol_vehicle_colour
 
-            if random.random() < 0.1:  # replace to user input
+            if random.random() < self.percent_of_hydrogen_cars:  # replace to user input
                 fuel_type = FuelType.hydrogen
                 colour = self.simulation_config.hydrogen_vehicle_colour
 
@@ -268,10 +279,15 @@ class ScenarioParser:
 
 
 def get_simulation_service(
-    logger: Logger, simulation_config: SimulationConfig, scenario_path: Path
+    logger: Logger,
+    simulation_config: SimulationConfig,
+    scenario_path: Path,
+    percent_of_hydrogen_cars: float,
 ) -> Service:
     scenario_parser = ScenarioParser(
-        simulation_config=simulation_config, scenario_path=scenario_path
+        simulation_config=simulation_config,
+        scenario_path=scenario_path,
+        percent_of_hydrogen_cars=percent_of_hydrogen_cars,
     )
     scenario_config = scenario_parser.get_scenario_config()
     return SimulationService(
