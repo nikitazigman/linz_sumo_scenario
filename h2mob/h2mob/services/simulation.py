@@ -4,11 +4,12 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from logging import Logger
 from pathlib import Path
+from typing import cast
 from xml.etree import ElementTree
 
 from h2mob.settings.simulation import SimulationConfig
 
-import traci
+import traci  # type: ignore
 
 from pydantic import BaseModel
 
@@ -52,41 +53,18 @@ class Service(ABC):
         ...
 
 
-class Client(ABC):
-    @abstractmethod
-    def route_to_nearest_gas_station(
-        self, vehicle_id: str, gas_stations: list[GasStation], stop_duration_sec: int
-    ) -> None:
-        ...
-
-    @abstractmethod
-    def get_loaded_vehicles_ids(self) -> list[str]:
-        ...
-
-    @abstractmethod
-    def get_vehicles_ids_in_simulation(self) -> list[str]:
-        ...
-
-    @abstractmethod
-    def get_tank_level_liters(self, vehicle_id: str) -> float:
-        ...
-
-    @abstractmethod
-    def set_vehicle_type(self, vehicle_id: str, vehicle_type: Vehicle) -> None:
-        ...
-
-
-class SumoClient(Client):
+class SumoClient:
     mg_in_liters: int = 748_900
+    configured_vehicles: set[str] = set()
 
     def route_to_nearest_gas_station(
         self, vehicle_id: str, gas_stations: list[GasStation], stop_duration_sec: int
     ) -> None:
-        vehicle_lane = traci.vehicle.getLaneID(vehicle_id)
-        vehicle_edge = traci.lane.getEdgeID(vehicle_lane)
+        vehicle_lane: str = cast(str, traci.vehicle.getLaneID(vehID=vehicle_id))
+        vehicle_edge: str = cast(str, traci.lane.getEdgeID(laneID=vehicle_lane))
 
         def distance_to_station(gas_station: GasStation) -> GasStation:
-            return traci.simulation.getDistanceRoad(
+            return traci.simulation.getDistanceRoad(  # type: ignore
                 edgeID1=vehicle_edge,
                 pos1=0,
                 edgeID2=gas_station.lane,
@@ -94,14 +72,14 @@ class SumoClient(Client):
                 isDriving=True,
             )
 
-        nearest_gas_station = min(gas_stations, key=distance_to_station)
+        nearest_gas_station: GasStation = min(gas_stations, key=distance_to_station)  # type: ignore
 
-        traci.vehicle.setVia(vehicle_id, nearest_gas_station.lane)
-        traci.vehicle.rerouteTraveltime(vehicle_id)
+        traci.vehicle.setVia(vehID=vehicle_id, edgeList=nearest_gas_station.lane)
+        traci.vehicle.rerouteTraveltime(vehID=vehicle_id)
         traci.vehicle.setChargingStationStop(
-            vehicle_id,
-            nearest_gas_station.id,
-            stop_duration_sec,
+            vehID=vehicle_id,
+            stopID=nearest_gas_station.id,
+            duration=stop_duration_sec,
         )
 
     def get_loaded_vehicles_ids(self) -> list[str]:
@@ -111,12 +89,19 @@ class SumoClient(Client):
         return traci.vehicle.getIDList()
 
     def get_tank_level_liters(self, vehicle_id: str) -> float:
-        tank_mg = int(traci.vehicle.getParameter(vehicle_id, "actualBatteryCapacity"))
+        tank_mg_response: str = cast(
+            str,
+            traci.vehicle.getParameter(
+                objectID=vehicle_id, key="device.battery.actualBatteryCapacity"
+            ),
+        )
+        tank_mg = float(tank_mg_response)
         return tank_mg / self.mg_in_liters  # mg in liter
 
     def set_vehicle_type(self, vehicle_id: str, vehicle_type: Vehicle) -> None:
         vehicle_parameters: dict = {
-            "actualBatteryCapacity": vehicle_type.tank_liters * self.mg_in_liters,
+            "device.battery.actualBatteryCapacity": vehicle_type.tank_liters
+            * self.mg_in_liters,
             "vehicleMass": vehicle_type.mass_kg,
             "frontSurfaceArea": vehicle_type.front_surface_area,
             "airDragCoefficient": vehicle_type.air_drag_coefficient,
@@ -133,12 +118,21 @@ class SumoClient(Client):
             traci.vehicle.setParameter(vehicle_id, key, value)
 
         traci.vehicle.setColor(vehicle_id, vehicle_type.colour)
+        self.configured_vehicles.add(vehicle_id)
+
+    def set_vehicle_class_to_custom1(self) -> None:
+        vehicle_types: list[str] = traci.vehicletype.getIDList()
+        for vehicle_type in vehicle_types:
+            traci.vehicletype.setVehicleClass(typeID=vehicle_type, clazz="custom1")
+
+    def get_configured_vehicles(self) -> set[str]:
+        return self.configured_vehicles
 
 
 class Step(traci.StepListener):
     def __init__(
         self,
-        client: Client,
+        client: SumoClient,
         logger: Logger,
         simulation_config: SimulationConfig,
         scenario_config: ScenarioConfig,
@@ -150,7 +144,7 @@ class Step(traci.StepListener):
 
 
 class ConfigureVehicle(Step):
-    def step(self, t: int) -> bool:
+    def step(self, t: int = 0) -> bool:  # type: ignore
         loaded_vehicle_ids = self.client.get_loaded_vehicles_ids()
 
         for vehicle_id in loaded_vehicle_ids:
@@ -163,22 +157,33 @@ class ConfigureVehicle(Step):
 class VehicleRouter(Step):
     routed_vehicles: set = set()
 
-    def step(self, t: int) -> bool:
-        vehicles_ids = set(self.client.get_vehicles_ids_in_simulation())
-
-        vehicles_to_reroute = [
-            vehicle
-            for vehicle in self.routed_vehicles - vehicles_ids
-            if self.client.get_tank_level_liters(vehicle)
-            < self.simulation_config.fuel_threshold_liters
+    def step(self, t: int = 0) -> bool:  # type: ignore
+        vehicles: set[str] = set(self.client.get_vehicles_ids_in_simulation())
+        configured_vehicles: set[str] = self.client.get_configured_vehicles()
+        configured_vehicles_in_simulation: set[str] = configured_vehicles & vehicles
+        vehicles_to_check: set[str] = (
+            configured_vehicles_in_simulation - self.routed_vehicles
+        )
+        vehicles_tank_level: dict[str, float] = {
+            vehicle_id: self.client.get_tank_level_liters(vehicle_id=vehicle_id)
+            for vehicle_id in vehicles_to_check
+        }
+        vehicles_to_reroute: list[str] = [
+            vehicle_id
+            for vehicle_id, tank_level_l in vehicles_tank_level.items()
+            if tank_level_l < self.simulation_config.fuel_threshold_liters
         ]
 
         for vehicle_id in vehicles_to_reroute:
             self.logger.info(f"Routing {vehicle_id=}")
-            vehicle_type = self.scenario_config.vehicles[vehicle_id]
+            vehicle_type: Vehicle = self.scenario_config.vehicles[vehicle_id]
+            if vehicle_type.fuel_type == FuelType.hydrogen:
+                charging_station = self.scenario_config.fuel_stations
+            else:
+                charging_station = self.scenario_config.hydrogen_stations
             self.client.route_to_nearest_gas_station(
                 vehicle_id=vehicle_id,
-                gas_stations=[],
+                gas_stations=charging_station,
                 stop_duration_sec=vehicle_type.charging_duration_seconds,
             )
 
@@ -192,7 +197,7 @@ class SimulationService(Service):
         VehicleRouter,
         ConfigureVehicle,
     )
-    client: Client = SumoClient()
+    client = SumoClient()
 
     def __init__(
         self,
@@ -228,10 +233,10 @@ class SimulationService(Service):
     def simulation_loop(self) -> None:
         sumocfg_file = self.scenario_path / self.simulation_config.sumocfg_file_path
         traci.start(["sumo-gui", "-c", sumocfg_file])
-
+        self.client.set_vehicle_class_to_custom1()
         self.add_simulation_listeners()
 
-        while traci.simulation.getMinExpectedNumber() > 0:
+        while traci.simulation.getMinExpectedNumber() > 0:  # type: ignore
             traci.simulationStep()
 
 
@@ -249,10 +254,10 @@ class ScenarioParser:
     def get_scenario_config(self) -> ScenarioConfig:
         vehicle_ids = self.get_vehicle_ids()
         vehicles = self.generate_vehicle_configs(vehicle_ids)
-
+        fuel_stations, hydrogen_stations = self.get_fuel_stations()
         return ScenarioConfig(
-            hydrogen_stations=[],
-            fuel_stations=[],
+            hydrogen_stations=hydrogen_stations,
+            fuel_stations=fuel_stations,
             vehicles=vehicles,
         )
 
@@ -294,10 +299,14 @@ class ScenarioParser:
 
     # TODO: add arg to select hydrogen stations
     def get_fuel_stations(self) -> tuple[list[GasStation], list[GasStation]]:
-        gas_stations_path = self.scenario_path / self.simulation_config.route_file_path
+        gas_stations_path = (
+            self.scenario_path / self.simulation_config.charging_stations_path
+        )
         stations_root = ElementTree.parse(gas_stations_path)
         gas_stations = [
-            GasStation(id=station.attrib["id"], lane=station.attrib["lane"])
+            GasStation(
+                id=station.attrib["id"], lane=station.attrib["lane"].split("_")[0]
+            )
             for station in stations_root.findall("chargingStation")
         ]
         return gas_stations[:1], gas_stations[1:]

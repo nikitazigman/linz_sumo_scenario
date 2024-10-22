@@ -22,7 +22,7 @@ def generate_scenario(
     charging_station_file: Annotated[Path, typer.Argument()],
     total_vehicles: Annotated[int, typer.Argument()],
     scenario_name: str = "scenario",
-):
+) -> None:
     config = get_scenario_conf()
     service = get_scenario_generator_service(
         config=config,
@@ -38,7 +38,7 @@ def generate_scenario(
 def run(
     scenario_path: Annotated[Path, typer.Argument()],
     percent_of_hydrogen_cars: Annotated[float, typer.Argument()],
-):
+) -> None:
     config = get_simulation_config()
     service = get_simulation_service(
         logger=logger,
