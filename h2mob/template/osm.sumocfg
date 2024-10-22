@@ -20,6 +20,8 @@
         <emission-output value="out/emission.out.xml"/> 
         <chargingstations-output value="out/chargingstations.out.xml"/> 
         <statistic-output value="out/statistics.out.xml"/>
+        <fcd-output.acceleration value="True"/>
+        <fcd-output value="out/fcd.out.xml"/>
     </output>
 
     <battery>
