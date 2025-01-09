@@ -30,6 +30,7 @@ def generate_scenario(
         charging_station_file=charging_station_file,
         total_vehicle_volume=total_vehicles,
         scenario_name=scenario_name,
+        logger=logger,
     )
     service.generate_scenario()
 

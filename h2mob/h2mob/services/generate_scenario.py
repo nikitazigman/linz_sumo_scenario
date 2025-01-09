@@ -2,6 +2,7 @@ import shutil
 import subprocess
 
 from abc import ABC, abstractmethod
+from logging import Logger
 from pathlib import Path
 
 from h2mob.settings import generator_config
@@ -18,6 +19,7 @@ class Service(ABC):
         charging_station_file: Path,
         net_file: Path,
         total_vehicle_volume: int,
+        logger: Logger,
     ) -> None:
         ...
 
@@ -34,37 +36,37 @@ class ScenarioGeneratorService(Service):
         config: generator_config.ScenarioConfig,
         net_file: Path,
         total_vehicle_volume: int,
+        logger: Logger,
     ) -> None:
-        self.net_file = net_file
-        self.charging_station_file = charging_station_file
-        self.scenario_name = scenario_name
-        self.total_vehicle = total_vehicle_volume
+        self.net_file: Path = net_file
+        self.charging_station_file: Path = charging_station_file
+        self.scenario_name: str = scenario_name
+        self.total_vehicle: int = total_vehicle_volume
         self.start_time_sec = 0
         self.stop_time_sec = 24 * 3600
-        self.config = config
+        self.config: generator_config.ScenarioConfig = config
+        self.logger: Logger = logger
 
-    def build_command(self, scenario: Path, period: list[float]) -> str:
+    def build_random_trip_command(self, scenario: Path, period: list[float]) -> str:
         period_str = ",".join([str(p) for p in period])
         command = (
             "python /opt/homebrew/share/sumo/tools/randomTrips.py "
             f"--net-file {self.net_file} "
             f"-o {scenario / self.config.trip_file_path} "
             f"--begin {self.start_time_sec} "
-            f"""--trip-attributes="type='{self.config.vehicle_type_name}'" """
             f"--end {self.stop_time_sec} "
+            f"""--trip-attributes="type='{self.config.vehicle_type_name}'" """
             f"-p {period_str} "
             f"--max-distance {self.config.max_trip_distance_m} "
             f"--min-distance {self.config.min_trip_distance_m} "
             f"--prefix {self.config.prefix} "
-            f"--route-file {scenario / self.config.route_file_path} "
             f"--additional-files {scenario / self.config.vehicle_type_path} "
             f"--random "
-            "--validate "
             f"--verbose"
         )
         return command
 
-    def generate_random_traffic(self, command: str) -> None:
+    def generate_random_trips(self, command: str) -> None:
         with subprocess.Popen(
             command,
             shell=True,
@@ -89,6 +91,45 @@ class ScenarioGeneratorService(Service):
             )
 
         rich.print("Successfully generated random traffic")
+        return None
+
+    def build_duarouter_command(self, scenario: Path) -> str:
+        command: str = (
+            f"duarouter -n {scenario / self.config.net_path} "
+            f"-t {scenario / self.config.trip_file_path} "
+            f"-o {scenario / self.config.route_file_path} "
+            f"--additional-files {scenario / self.config.vehicle_type_path} "
+            "--routing-threads 20 "
+            f"--ignore-errors "
+            f"--verbose"
+        )
+        return command
+
+    def convert_trips_to_routes(self, command: str) -> None:
+        with subprocess.Popen(
+            args=command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+        ) as process:
+            if process.stdout is None:
+                raise ValueError("stdout is None")
+            if process.stderr is None:
+                raise ValueError("sdterr is None")
+
+            for line in process.stdout:
+                self.logger.info(line)
+
+            process.stdout.close()
+            return_code = process.wait(timeout=10)  # 10 sec
+
+        if return_code != 0:
+            raise RuntimeError(
+                "Error while generating random traffic:\n" f"{process.stderr.read()}"
+            )
+
+        rich.print("Successfully convert trips to routes")
         return None
 
     def compute_periods(self) -> list[float]:
@@ -119,10 +160,19 @@ class ScenarioGeneratorService(Service):
         return scenario_path
 
     def generate_scenario(self) -> None:
-        scenario = self.build_scenario_directory()
+        self.logger.info("Generating trips")
+        scenario: Path = self.build_scenario_directory()
         periods: list[float] = self.compute_periods()
-        command = self.build_command(period=periods, scenario=scenario)
-        self.generate_random_traffic(command)
+        trip_command: str = self.build_random_trip_command(
+            period=periods, scenario=scenario
+        )
+        self.logger.info(f"trip command: {trip_command}")
+        self.generate_random_trips(command=trip_command)
+
+        self.logger.info("Generating routes")
+        duarouter_command: str = self.build_duarouter_command(scenario=scenario)
+        self.logger.info(f"duarouter command: {duarouter_command}")
+        self.convert_trips_to_routes(command=duarouter_command)
 
 
 def get_scenario_generator_service(
@@ -131,6 +181,7 @@ def get_scenario_generator_service(
     config: generator_config.ScenarioConfig,
     net_file: Path,
     total_vehicle_volume: int,
+    logger: Logger,
 ) -> Service:
     return ScenarioGeneratorService(
         charging_station_file=charging_station_file,
@@ -138,4 +189,5 @@ def get_scenario_generator_service(
         config=config,
         net_file=net_file,
         total_vehicle_volume=total_vehicle_volume,
+        logger=logger,
     )
