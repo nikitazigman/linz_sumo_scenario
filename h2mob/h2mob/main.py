@@ -4,7 +4,7 @@ from typing import Annotated
 from h2mob.services.generate_scenario import get_scenario_generator_service
 from h2mob.services.simulation import get_simulation_service
 from h2mob.settings.generator_config import get_scenario_conf
-from h2mob.settings.simulation import get_simulation_config
+from h2mob.settings.simulation import SimulationConfig, get_simulation_config
 
 import typer
 
@@ -39,8 +39,8 @@ def run(
     scenario_path: Annotated[Path, typer.Argument()],
     percent_of_hydrogen_cars: Annotated[float, typer.Argument()],
 ) -> None:
-    config = get_simulation_config()
-    service = get_simulation_service(
+    config: SimulationConfig = get_simulation_config()
+    service: Service = get_simulation_service(
         logger=logger,
         percent_of_hydrogen_cars=percent_of_hydrogen_cars,
         simulation_config=config,
