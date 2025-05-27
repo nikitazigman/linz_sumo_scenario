@@ -1,0 +1,7 @@
+services:
+  sumo:
+    build:
+      context: .
+    command: bash 
+    stdin_open: true 
+    tty: true        
