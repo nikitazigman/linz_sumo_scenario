@@ -54,8 +54,7 @@ class ScenarioConfig(BaseModel):
 
 class Service(ABC):
     @abstractmethod
-    def run(self) -> None:
-        ...
+    def run(self) -> None: ...
 
 
 class SumoClient:
@@ -247,7 +246,7 @@ class SimulationService(Service):
         sumocfg_file: Path = self.scenario_path.joinpath(
             self.simulation_config.sumocfg_file_path
         )
-        traci.start(cmd=["sumo-gui", "-c", sumocfg_file])
+        traci.start(cmd=["sumo", "-c", sumocfg_file])
         self.client.set_vehicle_class_to_custom1()
         self.add_simulation_listeners()
 
@@ -260,11 +259,13 @@ class ScenarioParser:
         self,
         simulation_config: SimulationConfig,
         scenario_path: Path,
+        hydrogen_stations: set[str],
         percent_of_hydrogen_cars: float,
     ) -> None:
         self.percent_of_hydrogen_cars = percent_of_hydrogen_cars
         self.scenario_path = scenario_path
         self.simulation_config = simulation_config
+        self.hydrogen_stations = hydrogen_stations
 
     def get_scenario_config(self) -> ScenarioConfig:
         vehicle_ids = self.get_vehicle_ids()
@@ -321,7 +322,7 @@ class ScenarioParser:
         fuel_station: list[GasStation] = []
 
         for station in stations_root.findall("chargingStation"):
-            if station.attrib["fuelType"] == "hydrogen":
+            if station.attrib["id"] in self.hydrogen_stations:
                 hydrogen_stations.append(
                     GasStation(
                         id=station.attrib["id"],
@@ -329,18 +330,13 @@ class ScenarioParser:
                         fuel_type=FuelType.hydrogen,
                     )
                 )
-            elif station.attrib["fuelType"] == "petrol":
+            else:
                 fuel_station.append(
                     GasStation(
                         id=station.attrib["id"],
                         lane=station.attrib["lane"].split("_")[0],
                         fuel_type=FuelType.petrol,
                     )
-                )
-            else:
-                raise ValueError(
-                    "Invalid fuel type. Check the XML file for the fuel stations. "
-                    "Available fuel types are 'hydrogen' and 'petrol'."
                 )
 
         return fuel_station, hydrogen_stations
@@ -349,12 +345,14 @@ class ScenarioParser:
 def get_simulation_service(
     logger: Logger,
     simulation_config: SimulationConfig,
+    hydrogen_stations: set[str],
     scenario_path: Path,
     percent_of_hydrogen_cars: float,
 ) -> Service:
     scenario_parser = ScenarioParser(
         simulation_config=simulation_config,
         scenario_path=scenario_path,
+        hydrogen_stations=hydrogen_stations,
         percent_of_hydrogen_cars=percent_of_hydrogen_cars,
     )
     scenario_config = scenario_parser.get_scenario_config()
