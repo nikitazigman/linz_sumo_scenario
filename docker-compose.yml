@@ -4,4 +4,7 @@ services:
       context: .
     command: bash 
     stdin_open: true 
-    tty: true        
+    tty: true    
+    volumes:
+      - ./scenarios:./scenarios
+      - ./config:./config
