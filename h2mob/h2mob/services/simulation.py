@@ -1,45 +1,28 @@
 import random
 
 from abc import ABC, abstractmethod
-from enum import Enum
 from logging import Logger
 from pathlib import Path
 from typing import cast
 from xml.etree import ElementTree
 
-from h2mob.settings.simulation import SimulationConfig
+from h2mob.settings.simulation import (
+    FuelType,
+    SimulationConfig,
+    Vehicle,
+    get_murai_vehicle_properties,
+    get_petrol_vehicle_properties,
+)
 
 import traci  # type: ignore
 
 from pydantic import BaseModel
 
 
-class FuelType(Enum):
-    petrol = 0
-    hydrogen = 1
-
-
 class GasStation(BaseModel):
     id: str
     lane: str
     fuel_type: FuelType
-
-
-class Vehicle(BaseModel):
-    colour: tuple[int, int, int, int]  # RGBA
-    fuel_type: FuelType
-    charging_duration_seconds: int = 5 * 60  # 5 mins
-    tank_liters: int
-    mass_kg: int
-    front_surface_area: float
-    air_drag_coefficient: float
-    constant_power_intake: int
-    internal_moment_of_inertia: float
-    radial_drag_coefficient: float
-    roll_drag_coefficient: float
-    propulsion_efficiency: float
-    recuperatoin_efficiency: float = 0.0
-    stopping_threshold: float
 
 
 FuelStations = list[GasStation]
@@ -115,12 +98,18 @@ class SumoClient:
             "airDragCoefficient": vehicle_type.air_drag_coefficient,
             "constantPowerIntake": vehicle_type.constant_power_intake,
             "internalMomentOfInertia": vehicle_type.internal_moment_of_inertia,
-            "radialDragCoefficient": vehicle_type.radial_drag_coefficient,
             "rollDragCoefficient": vehicle_type.roll_drag_coefficient,
             "propulsionEfficiency": vehicle_type.propulsion_efficiency,
             "recuperationEfficiency": vehicle_type.recuperatoin_efficiency,
-            "stoppingThreshold": vehicle_type.stopping_threshold,
             "vehicleFuelType": vehicle_type.fuel_type.name,
+            "wheelRadius": vehicle_type.wheel_radius,
+            "gearRatio": vehicle_type.gear_ratio,
+            "maximumTorque": vehicle_type.maximum_torque,
+            "maximumPower": vehicle_type.maximum_power,
+            "maximumRecuperationTorque": vehicle_type.maximum_recuperation_torque,
+            "maximumRecuperationPower": vehicle_type.maximum_recuperation_power,
+            "internalBatteryResistance": vehicle_type.internal_battery_resistance,
+            "nominalBatteryVoltage": vehicle_type.nominal_battery_voltage,
         }
 
         for key, value in vehicle_parameters.items():
@@ -307,30 +296,10 @@ class ScenarioParser:
         vehicles_configs: dict[str, Vehicle] = {}
 
         for vehicle_id in vehicle_ids:
-            fuel_type = FuelType.petrol
-            colour = self.simulation_config.petrol_vehicle_colour
-
-            if random.random() < self.percent_of_hydrogen_cars:  # replace to user input
-                fuel_type = FuelType.hydrogen
-                colour = self.simulation_config.hydrogen_vehicle_colour
-
-            vehicles_configs[vehicle_id] = Vehicle(
-                colour=colour,
-                fuel_type=fuel_type,
-                charging_duration_seconds=random.randint(5 * 60, 15 * 60),
-                tank_liters=random.randint(20, 45),
-                mass_kg=random.randint(1500, 2200),
-                # change to rand
-                front_surface_area=2.6,
-                air_drag_coefficient=0.35,
-                constant_power_intake=100,
-                internal_moment_of_inertia=0.01,
-                radial_drag_coefficient=0.01,
-                roll_drag_coefficient=0.01,
-                propulsion_efficiency=0.98,
-                recuperatoin_efficiency=0.0,
-                stopping_threshold=0.1,
-            )
+            if random.random() < self.percent_of_hydrogen_cars:
+                vehicles_configs[vehicle_id] = get_murai_vehicle_properties()
+            else:
+                vehicles_configs[vehicle_id] = get_petrol_vehicle_properties()
 
         return vehicles_configs
 
@@ -376,10 +345,15 @@ def get_simulation_service(
         hydrogen_stations=hydrogen_stations,
         percent_of_hydrogen_cars=percent_of_hydrogen_cars,
     )
-    scenario_config = scenario_parser.get_scenario_config()
+
+    scenario_config: ScenarioConfig = scenario_parser.get_scenario_config()
     out_folder_name = f"out_hydrogen_cars_{percent_of_hydrogen_cars}_hydrogen_stations_{'_'.join(hydrogen_stations)}"  # noqa
     output_folder = scenario_path / out_folder_name
     output_folder.mkdir(exist_ok=False)
+
+    with (output_folder / "scenario_config.json").open(mode="w") as f:
+        f.write(scenario_config.model_dump_json())
+
     return SimulationService(
         logger=logger,
         simulation_config=simulation_config,
