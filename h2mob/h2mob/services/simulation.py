@@ -216,10 +216,12 @@ class SimulationService(Service):
         simulation_config: SimulationConfig,
         scenario_config: ScenarioConfig,
         scenario_path: Path,
+        output_folder: Path,
     ) -> None:
         self.simulation_config: SimulationConfig = simulation_config
         self.scenario_config: ScenarioConfig = scenario_config
         self.scenario_path: Path = scenario_path
+        self.output_folder = output_folder
         self.logger: Logger = logger
         self.client = SumoClient(logger=logger)
 
@@ -246,7 +248,26 @@ class SimulationService(Service):
         sumocfg_file: Path = self.scenario_path.joinpath(
             self.simulation_config.sumocfg_file_path
         )
-        traci.start(cmd=["sumo", "-c", sumocfg_file])
+        traci.start(
+            cmd=[
+                "sumo",
+                "-c",
+                sumocfg_file,
+                "--fcd-output",
+                self.output_folder / "fcd.out.xml",
+                "--fcd-output.acceleration",
+                "--statistic-output",
+                self.output_folder / "statistics.out.xml",
+                "--chargingstations-output",
+                self.output_folder / "chargingstations.out.xml",
+                "--summary-output",
+                self.output_folder / "summary.out.xml",
+                "--battery-output.precision",
+                "4",
+                "--battery-output",
+                self.output_folder / "battery.out.xml",
+            ]
+        )
         self.client.set_vehicle_class_to_custom1()
         self.add_simulation_listeners()
 
@@ -356,9 +377,13 @@ def get_simulation_service(
         percent_of_hydrogen_cars=percent_of_hydrogen_cars,
     )
     scenario_config = scenario_parser.get_scenario_config()
+    out_folder_name = f"out_hydrogen_cars_{percent_of_hydrogen_cars}_hydrogen_stations_{'_'.join(hydrogen_stations)}"  # noqa
+    output_folder = scenario_path / out_folder_name
+    output_folder.mkdir(exist_ok=False)
     return SimulationService(
         logger=logger,
         simulation_config=simulation_config,
+        output_folder=output_folder,
         scenario_config=scenario_config,
         scenario_path=scenario_path,
     )
