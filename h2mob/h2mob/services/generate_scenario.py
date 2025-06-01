@@ -155,8 +155,6 @@ class ScenarioGeneratorService(Service):
             dst=self.scenario_path / self.config.charging_stations_path,
         )
 
-        self.scenario_path.joinpath("out").mkdir()
-
     def generate_scenario(self) -> None:
         self.logger.info("Generating trips")
         self.build_scenario_directory()
